@@ -1,0 +1,6 @@
+{
+  "version": "4",
+  "remote": {
+    "https://raw.githubusercontent.com/micnic/mime.json/master/index.json": "d1213833054f0c5d19a133543b2bba016a64e5ea19c1082d526760654be13ec1"
+  }
+}
