@@ -1,13 +1,18 @@
+import Client from '../client/Client.ts';
 import type { ApplicationRaw } from './Application.ts';
 import Attachment, { AttachmentRaw } from './Attachment.ts';
 import type { ChannelRaw } from './Channel.ts';
-import type { EmbedRaw } from "./Embed.ts";
+import Channel from './Channel.ts';
+import type { EmbedRaw } from './Embed.ts';
+import Embed from './Embed.ts';
 import type { EmojiRaw } from './Guild.ts';
 import type { MemberRaw } from './Member.ts';
 import type { MessageComponentsRaw } from './MessageComponents.ts';
 import type { RoleRaw, RoleSubscriptionDataRaw } from './Role.ts';
+import Role from './Role.ts';
 import type { SticketItemRaw, SticketRaw } from './Sticket.ts';
 import type { UserRaw } from './User.ts';
+import User, { loadUserFromRaw } from './User.ts';
 
 export interface ChannelMentionRaw {
   id: string;
@@ -113,6 +118,7 @@ export interface ResolvedDataRaw {
   attachments?: Map<string, AttachmentRaw>;
 }
 export interface MessageRaw {
+  allowed_mentions: MessageAllowedMentionsRaw;
   id: string;
   channel_id: string;
   author: UserRaw;
@@ -159,24 +165,115 @@ export interface MessageAllowedMentionsRaw {
 }
 
 export default class Message {
-  tts = false;
+  allowedMentions: MessageAllowedMentionsRaw;
+  id: string;
+  channelId: string;
   content: string;
-  constructor(data: MessageRaw) {
+  timestamp: string;
+  editedTimestamp: string | null;
+  tts: boolean;
+  mentionEveryone: boolean;
+  embeds: Embed[] = [];
+  author!: User;
+  mentions: User[] = [];
+  mentionRoles: Role[] = [];
+  attachments: Attachment[] = [];
+  mentionChannels: Channel[] = [];
+  referencedMessage!: Message;
+  thread!: Channel;
+  reactions?: ReactionRaw[];
+  nonce?: number | string;
+  pinned: boolean;
+  webhookId?: string;
+  type: MessageType;
+  activity?: MessageActivityRaw;
+  application?: ApplicationRaw;
+  applicationId?: string;
+  flags?: number;
+  interaction?: MessageInteractionRaw;
+  components?: MessageComponentsRaw[];
+  stickerItems?: SticketItemRaw[];
+  stickers?: SticketRaw[];
+  position?: number;
+  roleSubscriptionData?: RoleSubscriptionDataRaw;
+  resolved?: ResolvedDataRaw;
+  constructor(public client: Client, data: MessageRaw) {
+    console.log(data);
+    this.allowedMentions = data.allowed_mentions;
+    this.id = data.id;
+    this.channelId = data.channel_id;
     this.content = data.content;
+    this.timestamp = data.timestamp;
+    this.editedTimestamp = data.edited_timestamp;
+    this.tts = data.tts;
+    this.mentionEveryone = data.mention_everyone;
+    this.reactions = data.reactions;
+    this.nonce = data.nonce;
+    this.pinned = data.pinned;
+    this.webhookId = data.webhook_id;
+    this.type = data.type;
+    this.activity = data.activity;
+    this.application = data.application;
+    this.applicationId = data.application_id;
+    this.flags = data.flags;
+    this.interaction = data.interaction;
+    this.components = data.components;
+    this.stickerItems = data.sticker_items;
+    this.stickers = data.stickers;
+    this.position = data.position;
+    this.roleSubscriptionData = data.role_subscription_data;
+    this.resolved = data.resolved;
   }
+  async reply(message: MessageCreateRaw): Promise<Message> {
+    return await this.client.rest.createMessage(
+      this.channelId,
+      new MessageCreate({
+        ...message,
+        message_reference: {
+          message_id: this.id,
+        },
+      })
+    );
+  }
+}
+
+export async function loadMessage(
+  client: Client,
+  data: MessageRaw
+): Promise<Message> {
+  const message = new Message(client, data);
+  message.author = await loadUserFromRaw(client, data.author);
+  const max = Math.max(
+    data.embeds.length,
+    data.mentions.length,
+    data.mention_roles.length,
+    data.attachments.length
+  );
+  for (let i = 0; i < max; i++) {
+    if (data.embeds[i]) message.embeds.push(new Embed(data.embeds[i]));
+    if (data.mentions[i])
+      message.mentions.push(await loadUserFromRaw(client, data.mentions[i]));
+    if (data.mention_roles[i])
+      message.mentionRoles.push(new Role(data.mention_roles[i]));
+    if (data.attachments[i]) {
+      const attcBlob = await fetch(data.attachments[i].url).then(res =>
+        res.blob()
+      );
+      const attcUint8 = new Uint8Array(await attcBlob.arrayBuffer());
+      message.attachments.push(
+        new Attachment(data.attachments[i].filename, attcUint8)
+      );
+    }
+  }
+  return message;
 }
 
 export interface MessageCreateRaw {
   content?: string;
   nonce?: number | string;
   tts?: boolean;
-  embeds?: EmbedRaw[];
-  allowed_mentions?: {
-    parse: string[];
-    roles: string[];
-    users: string[];
-    replied_user: boolean;
-  };
+  embeds?: Embed[];
+  allowed_mentions?: MessageAllowedMentionsRaw;
   message_reference?: MessageReferenceRaw;
   components?: MessageComponentsRaw[];
   sticker_ids?: string[];
@@ -187,7 +284,7 @@ export class MessageCreate {
   content?: string;
   tts: boolean;
   nonce?: string | number;
-  embeds: EmbedRaw[] = [];
+  embeds: Embed[] = [];
   allowed_mentions?: {
     parse: string[];
     roles: string[];
@@ -213,7 +310,7 @@ export class MessageCreate {
     data.attachments && this.addAttachments(...data.attachments);
   }
 
-  addEmbeds(...embeds: EmbedRaw[]) {
+  addEmbeds(...embeds: Embed[]) {
     this.embeds.push(...embeds);
   }
   addComponents(...components: MessageComponentsRaw[]) {
@@ -224,5 +321,52 @@ export class MessageCreate {
   }
   addAttachments(...attachments: Attachment[]) {
     this.attachments.push(...attachments);
+  }
+  toFormData(): FormData {
+    const formData = new FormData();
+    formData.append('payload_json', this.toBlob());
+    for (let i = 0; i < this.attachments.length; i++) {
+      this.attachments[i].id = i;
+      formData.append(
+        `files[${i}]`,
+        this.attachments[i].toBlob(),
+        this.attachments[i].filename
+      );
+    }
+    return formData;
+  }
+  toSend():
+    | { type: 'multipart/form-data'; body: FormData }
+    | { type: 'application/json'; body: string } {
+    if (this.attachments.length)
+      return { type: 'multipart/form-data', body: this.toFormData() };
+    return { type: 'application/json', body: JSON.stringify(this) };
+  }
+  toJSON() {
+    return {
+      content: this.content,
+      tts: this.tts,
+      nonce: this.nonce,
+      embeds: this.embeds,
+      allowed_mentions: this.allowed_mentions,
+      message_reference: this.message_reference,
+      components: [],
+      sticker_ids: [],
+      attachments: this.attachments.map((attachment,i) => ({filename: attachment.filename, id: i})),
+      flags: this.flags,
+    };
+  }
+  toBlob() {
+    return new Blob([JSON.stringify(this)], { type: 'application/json' });
+  }
+  static fromMessage(message: Message): MessageCreateRaw {
+    return {
+      content: message.content,
+      tts: message.tts,
+      nonce: message.nonce,
+      allowed_mentions: message.allowedMentions,
+      sticker_ids: message.stickerItems?.map(sticker => sticker.id) ?? [],
+      attachments: message.attachments,
+    };
   }
 }

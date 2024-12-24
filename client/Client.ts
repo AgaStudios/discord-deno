@@ -1,14 +1,32 @@
-// deno-lint-ignore-file ban-types
+import { Events } from "../Events/index.ts";
 import { ChannelManager, UserManager } from "../structures/Manager.ts";
 import type User from "../structures/User.ts";
 import { Activity, Presence, Status } from '../Types/Precense.ts';
 import Rest from "./Rest.ts";
 import WebSocketManager from './WebSocketManager.ts';
 
-export default class Client {
-  token!: string;
+interface EMap<E> {
+  clear(): void;
+  delete<K extends keyof E>(key: K): boolean;
+  entries<K extends keyof E>(): IterableIterator<[K, E[K]]>;
+  forEach<K extends keyof E>(callback: (value: E[K][], key: K, map: EMap<E>) => void, thisArg?: this): void;
+  get<K extends keyof E>(key: K): E[K][] | undefined;
+  has<K extends keyof E>(key: K): boolean;
+  keys<K extends keyof E>(): IterableIterator<K>;
+  set<K extends keyof E>(key: K, value: E[K][]): this;
+  size: number;
+  values<K extends keyof E>(): IterableIterator<E[K][]>;
+}
+
+interface IEvents {
+  // deno-lint-ignore no-explicit-any
+  [key: string]: (...args: any[])=>void;
+}
+
+export default class Client<E extends IEvents = Events> {
+  #token = '';
   user!: User;
-  #events = new Map<string, Function[]>();
+  #events = new Map() as EMap<E>;
   #ws: WebSocketManager;
   #presence: Presence = {
     afk: false,
@@ -20,22 +38,26 @@ export default class Client {
   users: UserManager;
   channels: ChannelManager;
   constructor(intents = 1) {
-    this.#ws = new WebSocketManager(this, intents);
-    this.users = new UserManager(this);
-    this.channels = new ChannelManager(this);
-    this.rest = new Rest(this);
+    const self = this as unknown as Client;
+    this.#ws = new WebSocketManager(self, intents);
+    this.users = new UserManager(self);
+    this.channels = new ChannelManager(self);
+    this.rest = new Rest(self);
+  }
+  get token(): string {
+    return this.#token;
   }
   login(token: string): this {
-    this.token = token;
+    this.#token = token;
     this.#ws.connect(token);
     return this;
   }
-  on(event: string, ...callback: Function[]): this {
+  on<K extends keyof E>(event: K, ...callback: E[K][]): this {
     if (!this.#events.has(event)) this.#events.set(event, []);
     this.#events.get(event)?.push(...callback);
     return this;
   }
-  emit(event: string, ...args: any[]): this {
+  emit<K extends keyof E>(event: K, ...args: Parameters<E[K]>): this {
     if (!this.#events.has(event)) return this;
     this.#events.get(event)?.forEach(callback => {
       callback(...args);

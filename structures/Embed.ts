@@ -74,7 +74,7 @@ export default class Embed {
   provider: EmbedProviderRaw | null;
   author: EmbedAuthorRaw | null;
   fields: EmbedFieldRaw[] = [];
-  constructor(public data: EmbedRaw) {
+  constructor(data: EmbedRaw) {
     this.type = data.type || EmbedType.RICH;
     this.title = data.title ?? null;
     this.description = data.description ?? null;

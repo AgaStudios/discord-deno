@@ -1,3 +1,5 @@
+import Client from "../client/Client.ts";
+
 export interface RoleTagsRaw {
   bot_id?: string;
   integration_id?: string;
@@ -52,8 +54,13 @@ export default class Role {
     this.flags = data.flags;
   }
   toString(){
-    return `:${this.name}:`
+    return `<&${this.name}>`
   }
+}
+
+export async function loadRole(client: Client, id: string): Promise<Role> {
+  const data = await client.rest.fetchRole(id);
+  return new Role(data);
 }
 
 export interface RoleSubscriptionDataRaw {

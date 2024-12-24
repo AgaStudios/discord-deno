@@ -2,7 +2,7 @@ import type Client from '../client/Client.ts';
 import Guild from './Guild.ts';
 import { ChannelManager } from './Manager.ts';
 import { MemberRaw } from './Member.ts';
-import { MessageFlags, MessageRaw, MessageType } from './Message.ts';
+import { MessageCreate, MessageCreateRaw } from './Message.ts';
 import type { UserRaw } from './User.ts';
 
 const CHANNEL_PERMISSIONS = {};
@@ -150,17 +150,9 @@ export class CategoryChannel extends Channel {
   }
 }
 export class MessagableChannel extends Channel {
-  send(content: string) {
-    this.client.rest.createMessage(this.id, {
-      content,
-      type: MessageType.REPLY,
-      flags: MessageFlags.EPHEMERAL,
-      message_reference: {
-        channel_id: '915708885313151038',
-        guild_id: '915708884814024826',
-        message_id: '1175500123057430530',
-      },
-    } as unknown as MessageRaw);
+  send(data: string | MessageCreateRaw) {
+    data = typeof data === 'string' ? { content: data } : data;
+    this.client.rest.createMessage(this.id, new MessageCreate(data));
   }
 }
 export class TextChannel extends MessagableChannel {
@@ -215,7 +207,7 @@ export class VoiceChannel extends MessagableChannel {
     this.rateLimitPerUser = data.rate_limit_per_user;
   }
 }
-export class MDChannel extends Channel {}
+export class MDChannel extends MessagableChannel {}
 
 function getTypeChannel(type: ChannelType) {
   if (type === ChannelType.GUILD_TEXT) return TextChannel;

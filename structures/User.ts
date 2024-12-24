@@ -82,6 +82,12 @@ export default class User {
     this.publicFlags = data.public_flags;
     this.avatarDecoration = data.avatar_decoration;
   }
+  getAvatarURL(size = 128): string {
+    return `https://cdn.discordapp.com/avatars/${this.id}/${this.avatar}.${this.avatar?.startsWith('a_') ? 'gif' : 'png'}?size=${size}`;
+  }
+  getBannerURL(size = 128): string | null {
+    return this.banner ? `https://cdn.discordapp.com/banners/${this.id}/${this.banner}.png?size=${size}` : null;
+  }
 }
 
 export async function loadUserFromRaw(client: Client, data: UserRaw): Promise<User >{
