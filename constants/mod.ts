@@ -1,1 +1,1 @@
-export * as Intents from '@cs/Intents.ts';
+export * as Intents from 'discord/constants/Intents.ts';

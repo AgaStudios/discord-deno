@@ -1,4 +1,4 @@
-import Client from '@cl/Client.ts';
+import Client from "discord/client/Client.ts";
 
 export interface RoleTagsRaw {
 	bot_id?: string;

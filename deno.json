@@ -1,9 +1,5 @@
 {
   "imports": {
-    "@cl/": "./client/",
-    "@cs/": "./constants/",
-    "@e/": "./Events/",
-    "@s/": "./structures/",
-    "@t/": "./Types/"
+    "discord/": "./"
   }
 }

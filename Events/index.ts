@@ -1,16 +1,13 @@
-export { default as READY } from '@e/READY.ts';
-export { default as GUILD_CREATE } from '@e/GUILD_CREATE.ts';
-export { default as MESSAGE_CREATE } from '@e/MESSAGE_CREATE.ts';
+export { default as READY } from 'discord/Events/READY.ts';
+export { default as GUILD_CREATE } from 'discord/Events/GUILD_CREATE.ts';
+export { default as MESSAGE_CREATE } from 'discord/Events/MESSAGE_CREATE.ts';
+export { default as GUILD_MEMBER_ADD } from 'discord/Events/GUILD_MEMBER_ADD.ts';
+export { default as GUILD_MEMBER_REMOVE } from 'discord/Events/GUILD_MEMBER_REMOVE.ts';
 
-import type { MESSAGE_CREATE } from '@e/MESSAGE_CREATE.ts';
-import type { READY } from '@e/READY.ts';
-import type { GUILD_CREATE } from '@e/GUILD_CREATE.ts';
+import type { MESSAGE_CREATE } from 'discord/Events/MESSAGE_CREATE.ts';
+import type { READY } from 'discord/Events/READY.ts';
+import type { GUILD_CREATE } from 'discord/Events/GUILD_CREATE.ts';
+import type { GUILD_MEMBER_ADD } from 'discord/Events/GUILD_MEMBER_ADD.ts'
+import type { GUILD_MEMBER_REMOVE } from "discord/Events/GUILD_MEMBER_REMOVE.ts";
 
-
-type Value = { name: string, callback(...args: unknown[]): void}
-
-type Mapping<T extends Value> = {
-	[k in T['name']]: T['callback'];
-}
-
-export type Events = Mapping<MESSAGE_CREATE> & Mapping<READY> & Mapping<GUILD_CREATE>;
+export type Events = MESSAGE_CREATE & READY & GUILD_CREATE & GUILD_MEMBER_ADD&GUILD_MEMBER_REMOVE;

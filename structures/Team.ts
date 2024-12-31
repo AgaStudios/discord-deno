@@ -1,4 +1,4 @@
-import { UserRaw } from '@s/User.ts';
+import { UserRaw } from "discord/structures/User.ts";
 
 export const enum TeamMembershipState {
 	INVITED = 1,

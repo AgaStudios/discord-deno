@@ -1,4 +1,4 @@
-import type { EmojiRaw } from '@s/Guild.ts';
+import type { EmojiRaw } from 'discord/structures/Guild.ts';
 
 export const enum MessageComponentsType {
 	ACTION_ROW = 1,

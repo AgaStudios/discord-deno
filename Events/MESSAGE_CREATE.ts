@@ -1,5 +1,5 @@
-import Client from '@cl/Client.ts';
-import Message, { MessageRaw, loadMessage } from '@s/Message.ts';
+import Client from 'discord/client/Client.ts';
+import Message, { MessageRaw, loadMessage } from 'discord/structures/Message.ts';
 
 export default async function MESSAGE_CREATE(client: Client, data: MessageRaw) {
 	const message = await loadMessage(client, data);
@@ -7,6 +7,5 @@ export default async function MESSAGE_CREATE(client: Client, data: MessageRaw) {
 }
 
 export type MESSAGE_CREATE = {
-	name: 'messageCreate';
-	callback(message: Message): void;
+	messageCreate(message: Message): void;
 };

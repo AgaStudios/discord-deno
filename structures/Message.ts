@@ -1,18 +1,18 @@
-import Client from '@cl/Client.ts';
-import type { ApplicationRaw } from '@s/Application.ts';
-import Attachment, { AttachmentRaw } from '@s/Attachment.ts';
-import type { ChannelRaw } from '@s/Channel.ts';
-import Channel from '@s/Channel.ts';
-import type { EmbedRaw } from '@s/Embed.ts';
-import Embed from '@s/Embed.ts';
-import type { EmojiRaw } from '@s/Guild.ts';
-import type { MemberRaw } from '@s/Member.ts';
-import type { MessageComponentsRaw } from '@s/MessageComponents.ts';
-import type { RoleRaw, RoleSubscriptionDataRaw } from '@s/Role.ts';
-import Role from '@s/Role.ts';
-import type { SticketItemRaw, SticketRaw } from '@s/Sticket.ts';
-import type { UserRaw } from '@s/User.ts';
-import User, { loadUserFromRaw } from '@s/User.ts';
+import Client from 'discord/client/Client.ts';
+import type { ApplicationRaw } from 'discord/structures/Application.ts';
+import Attachment, { AttachmentRaw } from 'discord/structures/Attachment.ts';
+import Channel, { loadChannelFromRaw, type MessageChannel, type ChannelRaw } from 'discord/structures/Channel.ts';
+import type { EmbedRaw } from 'discord/structures/Embed.ts';
+import Embed from 'discord/structures/Embed.ts';
+import type { EmojiRaw } from 'discord/structures/Guild.ts';
+import { loadMemberFromId, type MemberRaw } from 'discord/structures/Member.ts';
+import type { MessageComponentsRaw } from 'discord/structures/MessageComponents.ts';
+import type { RoleRaw, RoleSubscriptionDataRaw } from 'discord/structures/Role.ts';
+import Role, { loadRole } from 'discord/structures/Role.ts';
+import type { StickerItemRaw, StickerRaw } from 'discord/structures/Sticker.ts';
+import type { UserRaw } from 'discord/structures/User.ts';
+import User, { loadUserFromRaw } from 'discord/structures/User.ts';
+import type { Member, TextChannel } from 'discord/structures/mod.ts';
 
 export interface ChannelMentionRaw {
 	id: string;
@@ -146,8 +146,8 @@ export interface MessageRaw {
 	interaction?: MessageInteractionRaw;
 	thread?: ChannelRaw;
 	components?: MessageComponentsRaw[];
-	sticker_items?: SticketItemRaw[];
-	stickers?: SticketRaw[];
+	sticker_items?: StickerItemRaw[];
+	stickers?: StickerRaw[];
 	position?: number;
 	role_subscription_data?: RoleSubscriptionDataRaw;
 	resolved?: ResolvedDataRaw;
@@ -167,7 +167,7 @@ export interface MessageAllowedMentionsRaw {
 export default class Message {
 	allowedMentions: MessageAllowedMentionsRaw;
 	id: string;
-	channelId: string;
+	channel!: MessageChannel;
 	content: string;
 	timestamp: string;
 	editedTimestamp: string | null;
@@ -175,12 +175,18 @@ export default class Message {
 	mentionEveryone: boolean;
 	embeds: Embed[] = [];
 	author!: User;
-	mentions: User[] = [];
-	mentionRoles: Role[] = [];
+	mentions: {
+		channels: Channel[];
+		members: Member[];
+		roles: Role[];
+	} = {
+		members: [],
+		roles: [],
+		channels: [],
+	};
 	attachments: Attachment[] = [];
-	mentionChannels: Channel[] = [];
 	referencedMessage!: Message;
-	thread!: Channel;
+	thread?: MessageChannel;
 	reactions?: ReactionRaw[];
 	nonce?: number | string;
 	pinned: boolean;
@@ -192,16 +198,14 @@ export default class Message {
 	flags?: number;
 	interaction?: MessageInteractionRaw;
 	components?: MessageComponentsRaw[];
-	stickerItems?: SticketItemRaw[];
-	stickers?: SticketRaw[];
+	stickerItems?: StickerItemRaw[];
+	stickers?: StickerRaw[];
 	position?: number;
 	roleSubscriptionData?: RoleSubscriptionDataRaw;
 	resolved?: ResolvedDataRaw;
-	constructor(public client: Client, data: MessageRaw) {
-		console.log(data);
+	constructor(private client: Client, data: MessageRaw) {
 		this.allowedMentions = data.allowed_mentions;
 		this.id = data.id;
-		this.channelId = data.channel_id;
 		this.content = data.content;
 		this.timestamp = data.timestamp;
 		this.editedTimestamp = data.edited_timestamp;
@@ -224,9 +228,13 @@ export default class Message {
 		this.roleSubscriptionData = data.role_subscription_data;
 		this.resolved = data.resolved;
 	}
-	async reply(message: MessageCreateRaw): Promise<Message> {
-		return await this.client.rest.createMessage(
-			this.channelId,
+	async delete(): Promise<boolean> {
+		return await this.client.rest.message.deleteMessage(this.channel.id, this.id);
+	}
+	async reply(message: MessageCreateRaw | string): Promise<Message> {
+		if (typeof message === 'string') message = { content: message };
+		return await this.client.rest.message.createMessage(
+			this.channel.id,
 			new MessageCreate({
 				...message,
 				message_reference: {
@@ -235,16 +243,35 @@ export default class Message {
 			})
 		);
 	}
+	async oldReply(message: MessageCreateRaw | string): Promise<Message> {
+		if (typeof message === 'string') message = { content: message };
+		return await this.client.rest.message.createMessage(this.channel.id, new MessageCreate(message));
+	}
+	get guild() {
+		return (this.channel as TextChannel).guild;
+	}
 }
 
 export async function loadMessage(client: Client, data: MessageRaw): Promise<Message> {
 	const message = new Message(client, data);
 	message.author = await loadUserFromRaw(client, data.author);
-	const max = Math.max(data.embeds.length, data.mentions.length, data.mention_roles.length, data.attachments.length);
+	message.channel = (await client.channels.getID(data.channel_id)) as MessageChannel;
+	if (data.thread)
+		message.thread = (await client.channels.tryGetIDOrAdd(data.thread.id, () =>
+			loadChannelFromRaw(client, data.thread!)
+		)) as MessageChannel;
+	const guild = (message.channel as TextChannel).guild;
+	const mentionChannels = [...message.content.matchAll(/(<#\d+>)/gi).map(r=>r[0].slice(2, r[0].length-1))]
+	const max = Math.max(mentionChannels.length,data.embeds.length, data.mentions.length, data.mention_roles.length, data.attachments.length);
 	for (let i = 0; i < max; i++) {
 		if (data.embeds[i]) message.embeds.push(new Embed(data.embeds[i]));
-		if (data.mentions[i]) message.mentions.push(await loadUserFromRaw(client, data.mentions[i]));
-		if (data.mention_roles[i]) message.mentionRoles.push(new Role(data.mention_roles[i]));
+		if (data.mentions[i]) message.mentions.members.push(await loadMemberFromId(client, guild, data.mentions[i].id));
+		if (data.mention_roles[i]) message.mentions.roles.push(await loadRole(client, data.mention_roles[i].id));
+		if (mentionChannels[i]) {
+			const channelId = mentionChannels[i];
+			const channel = await message.channel.guild.channels.getID(channelId);
+			if (channel) message.mentions.channels.push(channel);
+		}
 		if (data.attachments[i]) {
 			const attcBlob = await fetch(data.attachments[i].url).then(res => res.blob());
 			const attcUint8 = new Uint8Array(await attcBlob.arrayBuffer());
@@ -283,7 +310,7 @@ export class MessageCreate {
 	attachments: Attachment[] = [];
 	flags = 0;
 	constructor(data: MessageCreateRaw) {
-		this.content = data.content;
+		this.content = data.content ?? '';
 		this.tts = data.tts ?? false;
 		this.nonce = data.nonce;
 		this.message_reference = data.message_reference;
@@ -306,15 +333,17 @@ export class MessageCreate {
 		this.sticker_ids.push(...stickers);
 	}
 	addAttachments(...attachments: Attachment[]) {
-		this.attachments.push(...attachments);
+		for (let i = 0; i < attachments.length; i++) {
+			attachments[i].id = i;
+			this.attachments.push(attachments[i]);
+		}
 	}
 	toFormData(): FormData {
 		const formData = new FormData();
-		formData.append('payload_json', this.toBlob());
-		for (let i = 0; i < this.attachments.length; i++) {
-			this.attachments[i].id = i;
+		formData.append('payload_json', JSON.stringify(this));
+		for (let i = 0; i < this.attachments.length; i++)
 			formData.append(`files[${i}]`, this.attachments[i].toBlob(), this.attachments[i].filename);
-		}
+
 		return formData;
 	}
 	toSend(): { type: 'multipart/form-data'; body: FormData } | { type: 'application/json'; body: string } {
@@ -323,20 +352,33 @@ export class MessageCreate {
 	}
 	toJSON() {
 		return {
-			content: this.content,
-			tts: this.tts,
-			nonce: this.nonce,
-			embeds: this.embeds,
-			allowed_mentions: this.allowed_mentions,
-			message_reference: this.message_reference,
-			components: [],
-			sticker_ids: [],
-			attachments: this.attachments.map((attachment, i) => ({ filename: attachment.filename, id: i })),
-			flags: this.flags,
+			content: this.content || undefined,
+			tts: this.tts ?? undefined,
+			nonce: this.nonce ?? undefined,
+			embeds:
+				this.embeds.length === 0
+					? undefined
+					: this.embeds.map(embed => ({
+							title: embed.title ?? undefined,
+							type: embed.type ?? undefined,
+							description: embed.description ?? undefined,
+							url: embed.url ?? undefined,
+							timestamp: embed.timestamp ?? undefined,
+							color: embed.color ?? undefined,
+							footer: embed.footer ?? undefined,
+							image: embed.image ?? undefined,
+							thumbnail: embed.thumbnail ?? undefined,
+							video: embed.video ?? undefined,
+							provider: embed.provider ?? undefined,
+							author: embed.author ?? undefined,
+							fields: embed.fields.length === 0 ? undefined : embed.fields,
+					  })),
+			allowed_mentions: this.allowed_mentions ?? undefined,
+			message_reference: this.message_reference ?? undefined,
+			attachments:
+				this.attachments.length === 0 ? undefined : this.attachments.map((attachment, i) => ({ filename: attachment.filename, id: i })),
+			flags: this.flags || undefined,
 		};
-	}
-	toBlob() {
-		return new Blob([JSON.stringify(this)], { type: 'application/json' });
 	}
 	static fromMessage(message: Message): MessageCreateRaw {
 		return {

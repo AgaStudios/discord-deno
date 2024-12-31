@@ -1,7 +1,7 @@
-import { Gateway } from '@cs/Constants.ts';
-import { Heartbeat, Identify } from '@cs/Payload.ts';
-import * as Events from '@e/index.ts';
-import type Client from '@cl/Client.ts';
+import { Gateway } from 'discord/constants/Constants.ts';
+import { Heartbeat, Identify } from 'discord/constants/Payload.ts';
+import * as Events from 'discord/Events/index.ts';
+import type Client from 'discord/client/Client.ts';
 
 export default class WebSocketManager {
 	ws!: WebSocket;

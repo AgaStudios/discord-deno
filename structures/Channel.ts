@@ -1,9 +1,9 @@
-import type Client from '@cl/Client.ts';
-import Guild, { loadGuildFromId } from '@s/Guild.ts';
-import { ChannelManager } from '@s/Manager.ts';
-import { MemberRaw } from '@s/Member.ts';
-import { MessageCreate, MessageCreateRaw } from '@s/Message.ts';
-import type { UserRaw } from '@s/User.ts';
+import type Client from 'discord/client/Client.ts';
+import Guild, { loadGuildFromId } from 'discord/structures/Guild.ts';
+import { ChannelManager } from 'discord/structures/Manager.ts';
+import { MemberRaw } from 'discord/structures/Member.ts';
+import { MessageCreate, MessageCreateRaw } from 'discord/structures/Message.ts';
+import type { UserRaw } from 'discord/structures/User.ts';
 
 const CHANNEL_PERMISSIONS = {};
 
@@ -115,11 +115,18 @@ export interface ChannelRaw {
 export default class Channel {
 	id: string;
 	type!: ChannelType;
+	guild!: Guild;
 	constructor(public client: Client, data: ChannelRaw) {
 		this.id = data.id;
 	}
+	isTextBased(): this is MessageChannel {
+		return false;
+	}
+	toString(): string {
+		return `<#${this.id}>`;
+	}
 }
-export type TypeChannelMD = DMChannel;
+export type TypeChannelDM = DMChannel;
 export type TypeChannel = TextChannel | CategoryChannel | VoiceChannel;
 export class CategoryChannel extends Channel {
 	override type: ChannelType.GUILD_CATEGORY = ChannelType.GUILD_CATEGORY;
@@ -128,7 +135,6 @@ export class CategoryChannel extends Channel {
 	permissionOverwrites: OverwriteRaw[] | undefined;
 	nsfw: boolean | undefined;
 	channels: ChannelManager;
-	guild!: Guild;
 	constructor(client: Client, data: ChannelRaw) {
 		super(client, data);
 		this.channels = new ChannelManager(client);
@@ -144,10 +150,33 @@ export class CategoryChannel extends Channel {
 		channel.category = this;
 	}
 }
-export class MessageChannel extends Channel {
+export abstract class MessageChannel extends Channel {
 	send(data: string | MessageCreateRaw) {
 		data = typeof data === 'string' ? { content: data } : data;
-		this.client.rest.createMessage(this.id, new MessageCreate(data));
+		this.client.rest.message.createMessage(this.id, new MessageCreate(data));
+	}
+	override isTextBased(): this is MessageChannel {
+		return true;
+	}
+	async bulkDelete(count: number) {
+		const now = Date.now();
+		const fourteenDaysAgo = 14 * 24 * 60 * 60 * 1000;
+		const messages = await this.client.rest.message.fetchMessagesRaw(this.id, count);
+		const validMessages: string[] = [];
+		for (const message of messages) {
+			if (!message) continue;
+			const messageAge = now - Date.parse(message.timestamp);
+			if (messageAge <= fourteenDaysAgo) validMessages.push(message.id);
+			else break;
+		}
+		if (validMessages.length === 0 && count > 0) return 0;
+		if (validMessages.length === 1) {
+			const message = messages.find(msg => msg.id === validMessages[0])!;
+			await this.client.rest.message.deleteMessage(message.channel_id, message.id);
+			return 1;
+		}
+		if (validMessages.length > 100 && validMessages.length < 2) throw new Error('Invalid number in range 1 - 100');
+		return this.client.rest.message.bulkDeleteMessages(this.id, validMessages);
 	}
 }
 export class TextChannel extends MessageChannel {
@@ -161,7 +190,6 @@ export class TextChannel extends MessageChannel {
 	parentId: string | null | undefined;
 	defaultAutoArchiveDuration: number | undefined;
 	category!: CategoryChannel;
-	guild!: Guild;
 	constructor(client: Client, data: ChannelRaw) {
 		super(client, data);
 		this.name = data.name;
@@ -187,7 +215,6 @@ export class VoiceChannel extends MessageChannel {
 	rtcRegion: string | null | undefined;
 	rateLimitPerUser: number | undefined;
 	category!: CategoryChannel;
-	guild!: Guild;
 	constructor(client: Client, data: ChannelRaw) {
 		super(client, data);
 		this.name = data.name;
@@ -218,13 +245,11 @@ function getTypeChannel(type: ChannelType) {
 
 export async function loadChannelFromRaw(client: Client, data: ChannelRaw): Promise<ChannelData> {
 	const exists = client.channels.has('id', data.id);
-	if (exists) return (await client.channels.get('id', data.id) as ChannelData)!;
+	if (exists) return ((await client.channels.get('id', data.id)) as ChannelData)!;
 	const channel = new (getTypeChannel(data.type))(client, data) as unknown as ChannelData;
-	if(channel.type !== ChannelType.DM)
-		channel.guild = await loadGuildFromId(client, data.guild_id!);
-	if (channel.type !== ChannelType.GUILD_CATEGORY) 
-		client.channels.add(channel);
-	if(channel.type !== ChannelType.DM && channel.type !== ChannelType.GUILD_CATEGORY){
+	channel.guild = await loadGuildFromId(client, data.guild_id ?? '@me');
+	if (channel.type !== ChannelType.GUILD_CATEGORY) client.channels.add(channel);
+	if (channel.type !== ChannelType.DM && channel.type !== ChannelType.GUILD_CATEGORY) {
 		const category = await client.channels.get('id', data.parent_id!);
 		if (category instanceof CategoryChannel) category.addChannel(channel, CHANNEL_PERMISSIONS);
 	}
@@ -232,7 +257,7 @@ export async function loadChannelFromRaw(client: Client, data: ChannelRaw): Prom
 }
 export async function loadChannelFromId(client: Client, id: string): Promise<ChannelData> {
 	const exists = client.channels.has('id', id);
-	if (exists) return (await client.channels.get('id', id) as ChannelData)!;
+	if (exists) return ((await client.channels.get('id', id)) as ChannelData)!;
 	const rawChannel = await client.rest.fetchChannel(id);
 	return loadChannelFromRaw(client, rawChannel);
 }

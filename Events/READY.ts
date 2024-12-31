@@ -1,5 +1,5 @@
-import Client from '@cl/Client.ts';
-import User, { type UserRaw } from '@s/User.ts';
+import Client from 'discord/client/Client.ts';
+import User, { type UserRaw } from 'discord/structures/User.ts';
 
 interface ReadyRaw {
 	v: number;
@@ -11,7 +11,7 @@ interface ReadyRaw {
 	session_id: string;
 	resume_gateway_url: string;
 	shard?: [number, number];
-	application?: ApplicationRaw; // TODO: Implement partial application object
+	application?: ApplicationRaw;
 }
 
 interface ApplicationRaw {
@@ -20,7 +20,7 @@ interface ApplicationRaw {
 	icon: string | null;
 	description: string;
 	rpc_origins?: string[];
-	bot_public: boolean
+	bot_public: boolean;
 	bot_require_code_grant: boolean;
 	bot?: UserRaw;
 	terms_of_service_url?: string;
@@ -49,14 +49,11 @@ interface ApplicationRaw {
 }
 
 export default async function READY(client: Client, data: ReadyRaw) {
-	console.log(data);
 	client.user = new User(data.user);
-	for (const guild of data.guilds) 
-		await client.guilds.getID(guild.id);
+	for (const guild of data.guilds) await client.guilds.getID(guild.id);
 	client.emit('ready', client);
 }
 
 export type READY = {
-	name: 'ready';
-	callback(client: Client): void;
+	ready(client: Client): void;
 };

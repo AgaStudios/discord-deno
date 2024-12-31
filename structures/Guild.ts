@@ -1,11 +1,13 @@
-import { Locale } from '@t/Locale.ts';
-import Channel, { CategoryChannel, ChannelRaw, loadChannelFromRaw } from '@s/Channel.ts';
-import { loadMemberFromRaw, Member, MemberRaw } from '@s/Member.ts';
-import { RoleRaw } from '@s/Role.ts';
-import { UserRaw } from '@s/User.ts';
-import type Client from '@cl/Client.ts';
-import { ChannelManager, MemberManager, RoleManager } from '@s/Manager.ts';
-import Role from '@s/Role.ts';
+import { Locale } from 'discord/Types/Locale.ts';
+import Channel, { CategoryChannel, ChannelRaw, loadChannelFromRaw } from 'discord/structures/Channel.ts';
+import Member, { loadMemberFromRaw, MemberRaw } from 'discord/structures/Member.ts';
+import { RoleRaw } from 'discord/structures/Role.ts';
+import { UserRaw } from 'discord/structures/User.ts';
+import type Client from 'discord/client/Client.ts';
+import { ChannelManager, MemberManager, RoleManager } from 'discord/structures/Manager.ts';
+import Role from 'discord/structures/Role.ts';
+import type { StickerRaw } from "discord/structures/Sticker.ts";
+import type Sticker from "discord/structures/Sticker.ts";
 
 export interface EmojiRaw {
 	id: string;
@@ -16,16 +18,6 @@ export interface EmojiRaw {
 	managed?: boolean;
 	available?: boolean;
 	animated?: boolean;
-}
-export interface StickerRaw {
-	id: string;
-	pack_id: string;
-	name: string;
-	description: string;
-	tags: string;
-	asset: string;
-	preview_asset: string | null;
-	format_type: number;
 }
 export const enum VerificationLevel {
 	NONE,
@@ -114,7 +106,7 @@ export interface GuildRaw {
 	verification_level: VerificationLevel;
 	default_message_notifications: DefaultMessageNotifications;
 	explicit_content_filter: ExplicitContentFilter;
-	roles: RoleRaw[];
+	roles?: RoleRaw[];
 	emojis: EmojiRaw[];
 	features: GuildFeature[];
 	mfa_level: MFALevel;
@@ -155,21 +147,22 @@ export interface GuildRaw {
 }
 
 export default class Guild {
-	id: string;
-	name: string;
-	description: string | null;
+	readonly id: string;
+	readonly name: string;
+	readonly description: string | null;
 	#icon: string | null;
 	#splash: string | null;
 	#discoverySplash: string | null;
-	channels: ChannelManager;
-	categories: ChannelManager;
-	members: MemberManager;
-	owner!: Member;
-	region: string | null;
-	afkChannelId: string | null;
-	afkTimeout: number;
-	rulesChannelId: string | null;
-	roles: RoleManager;
+	readonly channels: ChannelManager;
+	readonly categories: ChannelManager;
+	readonly members: MemberManager;
+	readonly owner!: Member;
+	readonly region: string | null;
+	readonly afkChannelId: string | null;
+	readonly afkTimeout: number;
+	readonly rulesChannelId: string | null;
+	readonly roles: RoleManager;
+	readonly stickers: Sticker[] = [];
 	constructor(client: Client, data: GuildRaw) {
 		this.id = data.id;
 		this.name = data.name;
@@ -228,6 +221,9 @@ export default class Guild {
 		this.channels.add(channel);
 		if (channel instanceof CategoryChannel) this.categories.add(channel);
 	}
+	toString() {
+		this.name;
+	}
 }
 export async function loadGuildFromRaw(client: Client, data: GuildRaw): Promise<Guild> {
 	const exists = client.guilds.has('id', data.id);
@@ -235,9 +231,13 @@ export async function loadGuildFromRaw(client: Client, data: GuildRaw): Promise<
 	const guild = new Guild(client, data);
 	client.guilds.add(guild);
 
-	for (const role of data.roles) guild.roles.add(new Role(role));
-	for (const channel of data.channels) guild.addChannel(await loadChannelFromRaw(client, channel));
-	for (const member of data.members) guild.members.add(await loadMemberFromRaw(client, guild, member));
+	const max = Math.max(data.roles?.length||0, data.channels?.length||0, data.members?.length||0);
+
+	for (let i = 0; i < max; i++) {
+		if (data.roles?.[i]) guild.roles.add(new Role(data.roles[i]))
+    if (data.channels?.[i]) guild.addChannel(await loadChannelFromRaw(client, data.channels[i]));
+		if (data.members?.[i]) guild.members.add(await loadMemberFromRaw(client, guild, data.members[i]));
+	}
 
 	return guild;
 }
@@ -245,5 +245,5 @@ export async function loadGuildFromId(client: Client, id: string): Promise<Guild
 	const exists = client.guilds.has('id', id);
 	if (exists) return (await client.guilds.get('id', id))!;
 	const rawGuild = await client.rest.fetchGuild(id);
-	return loadGuildFromRaw(client, rawGuild);
+	return await loadGuildFromRaw(client, rawGuild);
 }

@@ -1,2 +1,2 @@
-export * from '@t/Locale.ts';
-export * from '@t/Presence.ts';
+export * from "discord/Types/Locale.ts";
+export * from "discord/Types/Presence.ts";

@@ -19,15 +19,16 @@ export interface AttachmentRaw {
 
 export default class Attachment{
   id = 0;
-  constructor(public filename: string, public data: Uint8Array){  }
+  constructor(public filename: string, public data: Uint8Array, public description?: string){}
   toBlob(){
-    const type = (this.filename.split('.').pop() || '') as keyof typeof mime
+    const type = (this.filename.split('.').pop()||'') as keyof typeof mime
     return new Blob([this.data], { type: mime[type] || 'application/octet-stream' });
   }
   toJSON(){
     return {
-      filename: this.filename,
       id: this.id,
+      filename: this.filename,
+      description: this.description,
     }
   }
 }

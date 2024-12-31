@@ -1,9 +1,10 @@
-import { Events } from '@e/index.ts';
-import { ChannelManager, UserManager, GuildManager } from '@s/Manager.ts';
-import type User from '@s/User.ts';
-import { Activity, Presence, Status } from '../Types/Presence.ts';
-import Rest from '@cl/Rest.ts';
-import WebSocketManager from '@cl/WebSocketManager.ts';
+import { Events } from 'discord/Events/index.ts';
+import Manager, { UserManager, GuildManager } from 'discord/structures/Manager.ts';
+import type User from 'discord/structures/User.ts';
+import { Activity, Presence, Status } from 'discord/Types/Presence.ts';
+import Rest from 'discord/client/Rest.ts';
+import WebSocketManager from 'discord/client/WebSocketManager.ts';
+import type Channel from "discord/structures/Channel.ts";
 
 interface EMap<E> {
 	clear(): void;
@@ -21,6 +22,20 @@ interface EMap<E> {
 interface IEvents {
 	// deno-lint-ignore no-explicit-any
 	[key: string]: (...args: any[]) => void;
+}
+
+class ChannelManager extends Manager<Channel>{
+	override async get<K extends keyof Channel>(key: K, value: NonNullable<Channel[K]>): Promise<Channel | undefined> {
+		for(const guild of this.client.guilds.cache)
+			if(guild.channels.has(key, value))return await guild.channels.get(key, value);
+		return;
+	}
+	/**
+	 * this method throws an error
+	 */
+	override tryGetIDOrAdd(_id: string, _value: (() => Channel) | (() => Promise<Channel>)): Promise<Channel> {
+		throw new Error("Invalid Function in this class");
+	}
 }
 
 export default class Client<E extends IEvents = Events> {
@@ -82,5 +97,8 @@ export default class Client<E extends IEvents = Events> {
 	}
 	setAFK(afk: boolean): this {
 		return this.setPresence({ afk });
+	}
+	[Symbol.for("Deno.customInspect")](){
+		return `<Client ${this.user.globalName}>`;
 	}
 }

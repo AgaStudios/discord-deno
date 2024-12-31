@@ -1,6 +1,6 @@
-import { GuildRaw } from '@s/Guild.ts';
-import { TeamRaw } from '@s/Team.ts';
-import { UserRaw } from '@s/User.ts';
+import { GuildRaw } from 'discord/structures/Guild.ts';
+import { TeamRaw } from 'discord/structures/Team.ts';
+import { UserRaw } from 'discord/structures/User.ts';
 
 export const enum ApplicationFlags {
 	APPLICATION_AUTO_MODERATION_RULE_CREATE_BADGE = 1 << 6,

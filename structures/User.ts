@@ -1,5 +1,5 @@
-import { Locale } from '@t/Locale.ts';
-import Client from '@cl/Client.ts';
+import { Locale } from "discord/Types/Locale.ts";
+import Client from "discord/client/Client.ts";
 
 export const enum UserFlags {
 	STAFF = 1 << 0,
@@ -29,7 +29,7 @@ export interface UserRaw {
 	id: string;
 	username: string;
 	discriminator: string;
-	global_name: string | null;
+	tag: string | null;
 	avatar: string | null;
 	bot?: boolean;
 	system?: boolean;
@@ -67,15 +67,15 @@ export default class User {
 		this.id = data.id;
 		this.username = data.username;
 		this.discriminator = data.discriminator;
-		this.globalName = data.global_name;
+		this.globalName = data.tag;
 		this.avatar = data.avatar;
-		this.bot = data.bot;
-		this.system = data.system;
-		this.mfaEnabled = data.mfa_enabled;
+		this.bot = !!data.bot;
+		this.system = !!data.system;
+		this.mfaEnabled = !!data.mfa_enabled;
 		this.banner = data.banner;
 		this.accentColor = data.accent_color;
 		this.locale = data.locale;
-		this.verified = data.verified;
+		this.verified = !!data.verified;
 		this.email = data.email;
 		this.flags = data.flags;
 		this.premiumType = data.premium_type;
