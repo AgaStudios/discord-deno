@@ -1,4 +1,4 @@
-import mime from 'https://raw.githubusercontent.com/micnic/mime.json/master/index.json' with {type:'json'};
+import mime from 'https://raw.githubusercontent.com/micnic/mime.json/master/index.json' assert {type:'json'};
 export const enum AttachmentFlags {
   IS_REMIX = 1 << 2,
 }
